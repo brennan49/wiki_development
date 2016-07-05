@@ -8,11 +8,6 @@ import keyring
 
 BASE_URL = "http://wiki.optum.com/rest/api/content"
 
-#my_response = requests.get(url, auth = HTTPDigestAuth(input("username: "), input("Password: ")))
-
-#print(my_response.status_code)
-
-
 def fixGetpass():
     import getpass
     import warnings
@@ -24,9 +19,12 @@ def fixGetpass():
         warnings.simplefilter("ignore", category=getpass.GetPassWarning)
 
 
-def getChildPages():
-    pageid = 63782193
-    url = '{base}/{pageid}?expand=children.children'.format(base=BASE_URL, pageid=pageid)
+def getChildPages(auth):
+    pageName = "AWS Project"
+    pageData = searchUsingPageName(pageName, auth)
+    pythonPageData = json.loads(pageData)
+    pageId = pythonPageData["id"]
+    url = '{base}/search?cql=parent={pageName}'.format(base=BASE_URL, pageName=pageName)
     request = requests.get(url, auth=auth)
     request.raise_for_status()
     return request.json()['children']
@@ -37,7 +35,6 @@ def pprint(data):
 
 
 def getUserInfo():
-    #print("Please enter your username and password.")
     username = input("username: ")
     fixGetpass()
     passwd = getpass.win_getpass(stream=None)
@@ -49,25 +46,27 @@ def addFile(file):
     {}
 
 
-def update_page(pageName,data):
-    {}
-
-def update_page_id(pageID, data):
+def update_page(pageName, data, auth):
     {}
 
 
-def getPageAncestors(auth, pageid):
+def update_page_id(pageID, data, auth):
+    {}
+
+
+def getPageAncestors(pageid, auth):
     url = '{base}/{pageid}?expand=ancestors'.format(base = BASE_URL, pageid = pageid)
     request = requests.get(url, auth = auth)
     request.raise_for_status()
     return request.json()['ancestors']
 
 
-def searchUsingPageID(pageID):
-    url = BASE_URL + '/search?cql=id~' + pageID
-    request = requests.get(url, auth=auth)
+def searchUsingPageID(pageID, auth):
+    #url = BASE_URL + '/search?cql=id=' + pageID
+    #request =  requests.get(BASE_URL, params={"id": pageID}, auth=auth)
+    request = requests.get(BASE_URL + "/" + pageID + "?status=any", auth=auth)
     request.raise_for_status()
-    return request.json()['title', 'id']
+    return request.json()
 
 
 def searchUsingPageName(name, auth):
@@ -77,72 +76,133 @@ def searchUsingPageName(name, auth):
 
 
 def createNewPage(page_name, data, auth):
-    request = requests.post(BASE_URL, params={"title":page_name, "type":"page", "space":{"key": "TST"},
-                                             "body":{"storage":{"value":data,"representation":"storage"}}},
+    payload = {"title":page_name, "type":"page", "space":{"key": "TST"},
+                                             "body":{"storage":{"value":data,"representation":"storage"}}}
+    request = requests.post(BASE_URL + "/", data=payload,
                             auth=auth)
     request.raise_for_status()
     return request.json()
 
 
 def createPageAsChild(page_name, parentId, data, auth):
-    request = requests.post(BASE_URL + "/", params={"type":"page","title":page_name, "ancestors":[{"type":"page","id":parentId}],
-                                              "space":{"key":"TST"},
-                                              "body":{"storage":{"value":data,"representation":"storage"}}},
+    payload = {"type":"page","title":page_name, "ancestors":[{"id":parentId}],
+
+                                              "body":{"storage":{"value":data,"representation":"storage"}}}
+    request = requests.post(BASE_URL + "/", params={json.dumps(payload)},
                             auth=auth)
     request.raise_for_status()
     return request.json()
 
 
 def main():
-    ans = input("""
+    while(1):
+        auth = ("devlin.brennan", "Brenndev_49")
+        ans = input("""
                     Please choose from the following list by entering their associated number on the left:
-                    1. login
-                    2. search for page
-                    3. create a new page
-                    4. update page
-                    5. add file to page
+                    1. search for page
+                    2. create a new page
+                    3. update page
+                    4. add file to page
+                    5. Exit
                     """)
-    if ans == "1":
-        auth = getUserInfo()
+        #if ans == "1":
+         #   auth = getUserInfo()
 
-    elif ans == "2":
-        searchBy = input("""
-                          search for page using pageID or page name?
-                          (please type id or name)
-                          """)
-        if searchBy == "id":
-            id = input("What is the id number? ")
-            searchUsingPageID(id)
-        if searchBy == "name":
-            page = input("What is the page name? ")
-            searchUsingPageName(page)
-        else:
-            print("Please type either id or name")
-    elif ans == "3":
-        pageName = input("Please specify a page name. ")
-        location = input("please select where you would like to create the page. ")
-        createNewPage(pageName, location)
 
-    elif ans == "4":
-        searchBy = input("""
+        '''After searching, ask user if they would like to do anything with the information received
+           for example, create a new page as the child of page found, etc.'''
+        if ans == "1":
+            searchBy = input("""
+                                search for page using pageID or page name?
+                                (please type id or name)
+                             """)
+
+            if searchBy == "id":
+                id = input("What is the id number? ")
+                page = searchUsingPageID(id, auth)
+                pprint(page)
+
+            elif searchBy == "name":
+                pageName = input("What is the page name? ")
+                parentPage = searchUsingPageName(pageName, auth)
+                pprint(parentPage)
+                results = parentPage['results']
+                parentId = results[0]['id']
+                print("Would you like to perform any other actions of this page?")
+                choice = input("""Your choices are:
+                                  1. Create Child Page
+                                  2. Update page
+                                  3. Place attachment""")
+
+                if choice == "1":
+                    name = input("What do you want the child page to be named?")
+                    data = input("Would you like to add any comments to the page?")
+                    createPageAsChild(name, parentId, data, auth)
+
+                elif choice == "2":
+                    data = input("What would you like to add to the page?")
+                    update_page(pageName,data, auth)
+
+                elif choice == "3":
+                    location = input("Please type the location of the file")
+                    page = input("Where would you like to place the file? (specify page name)")
+                    addFile(page, location, auth)
+
+            else:
+                print("Please type either id or name")
+
+
+        #Create a new page at the root
+        elif ans == "2":
+            pageName = input("Please specify a page name. ")
+            location = input("please select where you would like to create the page. ")
+            createNewPage(pageName, location, auth)
+
+
+        #will prompt to search for page to update using id or name
+        #next it will find the page and update with the data
+        #likely redundant and will be removed in end product
+        elif ans == "3":
+            searchBy = input("""
                           search for page to update using pageID or page name?
                           (please type id or name)
                           """)
-        if searchBy == "id":
-            id = input("What is the id number? ")
-            update_page_id(id, data)
-        if searchBy == "name":
-            pageName = input("What is the page name? ")
-            update_page(pageName, data)
+            if searchBy == "id":
+                id = input("What is the id number? ")
+                data = ""
+                update_page_id(id, data, auth)
+            if searchBy == "name":
+                pageName = input("What is the page name? ")
+                update_page(pageName, data, auth)
+
+
+        #search for page using id or name, once page found, attach specified document to it
+        elif ans == "4":
+            {}
+
+
+        #exit the program
+        elif ans == "5":
+            print("Thank you.")
+            break
+
+
+        #error occurred
+        else:
+            print("Please enter the desired number from the list above.")
 
 
 auth = ("devlin.brennan", "Brenndev_49")#getUserInfo()
-#anc = searchUsingPageName("Foundation Engineering Organization", auth)
-#anc = getPageAncestors(auth, 64684723)
-#anc = getChildPages()
-#anc = searchUsingPageID(63782193)
+#anc = searchUsingPageName("AWS Project", auth)
+#id = anc["id"]
+#anc = getPageAncestors(64684723, auth)
+#anc = getChildPages(auth)
+#anc = searchUsingPageID("64684724", auth)
 data = "this is a test page"
 #anc = createNewPage("Test Page", data, auth)
-anc = createPageAsChild("New Test Page", 64684724, data, auth)
-
+anc = createPageAsChild("New Test Page", 65700826, data, auth)
+#main()
+#anc = searchUsingPageName("AWS Project", auth)
 pprint(anc)
+#results = anc['results']
+#print (results[0]['id'])
