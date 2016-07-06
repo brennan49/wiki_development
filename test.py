@@ -5,6 +5,7 @@ import json
 import argparse
 import sys
 import keyring
+import subprocess
 
 BASE_URL = "http://wiki.optum.com/rest/api/content"
 
@@ -76,21 +77,24 @@ def searchUsingPageName(name, auth):
 
 
 def createNewPage(page_name, data, auth):
-    payload = {"title":page_name, "type":"page", "space":{"key": "TST"},
-                                             "body":{"storage":{"value":data,"representation":"storage"}}}
-    request = requests.post(BASE_URL + "/", data=payload,
-                            auth=auth)
+    headers = {'Content-Type': 'application/json', 'Accept': 'application.json'}
+    payload = {"title":page_name, "type":"page", "space":{"key": "TST"},"body":{"storage":{"value":data,"representation":"storage"}}}
+    request = requests.post(BASE_URL + "/", data=json.dumps(payload), headers=headers, auth=auth)
     request.raise_for_status()
     return request.json()
 
 
 def createPageAsChild(page_name, parentId, data, auth):
-    payload = {"type":"page","title":page_name, "ancestors":[{"id":parentId}],
-
-                                              "body":{"storage":{"value":data,"representation":"storage"}}}
-    request = requests.post(BASE_URL + "/", params={json.dumps(payload)},
-                            auth=auth)
+    headers = {'Content-Type': 'application/json', 'Accept': 'application.json'}
+    payload = {"type":"page","ancestors":[{"type":"page","id":parentId}],"title":page_name,
+               "body":{"storage":{"value":"<p>" + data + "</p>","representation":"storage"}}}
+    url = BASE_URL + "/"
+    request = requests.post(url, headers=headers, data=payload, auth=auth)
     request.raise_for_status()
+    #cmd = '''curl -u devlin.brennan:Brenndev_49 -X POST -H 'Content-Type: application/json' -d'{"type":"page","title":"new page", "ancestors":[{"id":65700826}], "body":{"storage":{"value":"<p>This is a new page</p>","representation":"storage"}}}' http://wiki.optum.com/rest/api/content/ | python -mjson.tool'''
+    #args = cmd.split()
+    #process = subprocess.Popen(args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    #stdout, stderr = process.communicate()
     return request.json()
 
 
@@ -136,7 +140,7 @@ def main():
 
                 if choice == "1":
                     name = input("What do you want the child page to be named?")
-                    data = input("Would you like to add any comments to the page?")
+                    data = "test"
                     createPageAsChild(name, parentId, data, auth)
 
                 elif choice == "2":
@@ -155,8 +159,14 @@ def main():
         #Create a new page at the root
         elif ans == "2":
             pageName = input("Please specify a page name. ")
-            location = input("please select where you would like to create the page. ")
-            createNewPage(pageName, location, auth)
+            location = input("please specify where you would like to create the page. (root if at the root, else specify the parent page name)")
+            if location == "root":
+                createNewPage(pageName, location, auth)
+            else:
+                parentPage = searchUsingPageName(location, auth)
+                results = parentPage['results']
+                parentId = results[0]['id']
+                createPageAsChild(pageName, parentId, auth)
 
 
         #will prompt to search for page to update using id or name
@@ -198,11 +208,11 @@ auth = ("devlin.brennan", "Brenndev_49")#getUserInfo()
 #anc = getPageAncestors(64684723, auth)
 #anc = getChildPages(auth)
 #anc = searchUsingPageID("64684724", auth)
-data = "this is a test page"
+#data = "this is a test page"
 #anc = createNewPage("Test Page", data, auth)
-anc = createPageAsChild("New Test Page", 65700826, data, auth)
-#main()
+#anc = createPageAsChild("New Test Page", 65700826, data, auth)
+main()
 #anc = searchUsingPageName("AWS Project", auth)
-pprint(anc)
+#pprint(anc)
 #results = anc['results']
 #print (results[0]['id'])
