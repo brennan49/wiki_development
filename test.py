@@ -3,7 +3,7 @@ import getpass
 from requests.auth import HTTPDigestAuth
 import json
 
-url = "http://wiki.optum.com/rest/api/content"
+url = ""
 
 my_response = requests.get(url, auth = HTTPDigestAuth(input("username: "), input("Password: ")))
 
